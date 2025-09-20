@@ -74,8 +74,8 @@ jobs:
         with:
           pkgname: ai-pkg-bin
           pkgbuild: ./PKGBUILD
-          commit_username: "github-actions"
-          commit_email: "actions@github.com"
+          commit_username: "rohankrsingh"
+          commit_email: ${{ secrets.AUR_EMAIL }}
           ssh_private_key: ${{ secrets.AUR_SSH_KEY }}
           commit_message: "Update to ${{ github.ref_name }}"
           ssh_keyscan_types: rsa,ecdsa,ed25519
