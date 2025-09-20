@@ -31,7 +31,6 @@ jobs:
         run: |
           TAG=${{ github.ref_name }}
           VERSION=${TAG#v}
-          # Use sed to update the version in pyproject.toml
           sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
           echo "Updated pyproject.toml to version $VERSION"
       
@@ -43,15 +42,21 @@ jobs:
           FILE=$(ls dist/*.whl | head -n 1)
           VERSION=${{ github.ref_name }}
           VERSION=${VERSION#v}
-          BASENAME=$(basename "$FILE" | sed "s/[0-9]\+\.[0-9]\+\.[0-9]\+/$VERSION/")
-          NEW_NAME="dist/$BASENAME"
-          mv "$FILE" "$NEW_NAME"
-          echo "Renamed wheel to $NEW_NAME"
+          echo "Wheel file before rename: $FILE"
+          # Only rename if filename does not already contain correct version
+          BASENAME=$(basename "$FILE")
+          if [[ "$BASENAME" != *"$VERSION"* ]]; then
+            BASENAME=$(echo "$BASENAME" | sed "s/[0-9]\+\.[0-9]\+\.[0-9]\+/$VERSION/")
+            NEW_NAME="dist/$BASENAME"
+            mv "$FILE" "$NEW_NAME"
+            echo "Renamed wheel to $NEW_NAME"
+          else
+            NEW_NAME="$FILE"
+            echo "Wheel already has correct version: $NEW_NAME"
+          fi
 
       - name: List wheel files
-        run: |
-          echo "Files in dist/:"
-          ls -l dist/
+        run: ls -l dist/
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v1
@@ -67,14 +72,13 @@ jobs:
           echo "Updating PKGBUILD to version $VERSION"
           # Update pkgver
           sed -i "s/^pkgver=.*/pkgver=$VERSION/" PKGBUILD
-          # Update source URL
+          # Keep your URL as-is (tag URL)
           sed -i "s|source=(\".*\")|source=(\"https://github.com/rohankrsingh/ai-pkg/releases/tag/v$VERSION/ai-pkg-$VERSION.whl\")|" PKGBUILD
-          # Compute new SHA256
+          # Compute SHA256 from wheel file
           FILE=$(ls dist/*.whl | head -n 1)
           SHA256=$(sha256sum "$FILE" | cut -d ' ' -f1)
           sed -i "s|sha256sums=('REPLACE_ME')|sha256sums=('$SHA256')|" PKGBUILD
           echo "PKGBUILD updated"
-
 
   aur-publish:
     needs: build-and-release
