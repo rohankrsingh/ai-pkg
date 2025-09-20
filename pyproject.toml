@@ -4,9 +4,6 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-pkg"
-[tool.setuptools_scm]
-version_scheme = "post-release"
-local_scheme = "no-local-version"
 version = "0.1.0"
 description = "AI-powered package recommender for Arch Linux"
 authors = [{ name = "Rohan Kumar Singh", email = "rohankrsingh125@gmail.com" }]
@@ -18,7 +15,6 @@ dependencies = [
     "requests",
     "rich",
     "google-genai",
-    "setuptools_scm"
 ]
 
 [project.scripts]
