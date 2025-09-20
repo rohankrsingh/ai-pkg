@@ -37,6 +37,14 @@ jobs:
       
       - name: Build wheel
         run: python -m build
+      
+      - name: Normalize wheel name
+        run: |
+          VERSION=${{ github.ref_name#v }}
+          FILE=$(ls dist/*.whl | head -n 1)
+          NEW_NAME="dist/ai-pkg-${VERSION}-py3-none-any.whl"
+          mv "$FILE" "$NEW_NAME"
+          echo "Renamed wheel to $NEW_NAME"
 
       - name: List wheel files
         run: |
