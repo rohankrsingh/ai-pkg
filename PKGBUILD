@@ -1,6 +1,6 @@
 # Maintainer: Your Name <you@example.com>
 pkgname=ai-pkg-bin
-pkgver=0.1.0
+pkgver=0.1.6
 pkgrel=1
 pkgdesc="AI-powered package recommender and installer for Arch Linux"
 arch=('x86_64')

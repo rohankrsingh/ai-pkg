@@ -7,7 +7,7 @@ name = "ai-pkg"
 [tool.setuptools_scm]
 version_scheme = "post-release"
 local_scheme = "no-local-version"
-version = "0.1.6"
+version = "0.1.0"
 description = "AI-powered package recommender for Arch Linux"
 authors = [{ name = "Rohan Kumar Singh", email = "rohankrsingh125@gmail.com" }]
 readme = "README.md"
