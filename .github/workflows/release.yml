@@ -56,43 +56,52 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install git
+      - name: Install git and utilities
         run: sudo apt-get update && sudo apt-get install -y git make wget
 
       - name: Prepare SSH for AUR
-        if: secrets.AUR_SSH_KEY != ''
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.AUR_SSH_KEY }}" | tr -d '\r' > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
-
-      - name: Clone or init AUR repo
-        if: secrets.AUR_SSH_KEY != ''
-        run: |
-          if git ls-remote ssh://aur@aur.archlinux.org/ai-pkg-bin.git; then
-            git clone ssh://aur@aur.archlinux.org/ai-pkg-bin.git aur-repo
+          if [ -n "${{ secrets.AUR_SSH_KEY }}" ]; then
+            mkdir -p ~/.ssh
+            echo "${{ secrets.AUR_SSH_KEY }}" | tr -d '\r' > ~/.ssh/id_rsa
+            chmod 600 ~/.ssh/id_rsa
+            ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
           else
-            mkdir aur-repo
-            cd aur-repo
-            git init
-            git remote add origin ssh://aur@aur.archlinux.org/ai-pkg-bin.git
-            cd ..
+            echo "No AUR SSH key provided, skipping."
           fi
 
-      - name: Update PKGBUILD with SHA256 and .SRCINFO
-        if: secrets.AUR_SSH_KEY != ''
+      - name: Clone or init AUR repo
+        run: |
+          if [ -n "${{ secrets.AUR_SSH_KEY }}" ]; then
+            if git ls-remote ssh://aur@aur.archlinux.org/ai-pkg-bin.git; then
+              git clone ssh://aur@aur.archlinux.org/ai-pkg-bin.git aur-repo
+            else
+              mkdir aur-repo
+              cd aur-repo
+              git init
+              git remote add origin ssh://aur@aur.archlinux.org/ai-pkg-bin.git
+              cd ..
+            fi
+          else
+            echo "No AUR SSH key provided, skipping."
+          fi
+
+      - name: Update PKGBUILD and .SRCINFO
         env:
           TAG: ${{ github.ref_name }}
           SHA256: ${{ env.SHA256 }}
         run: |
-          VERSION=${TAG#v}
-          cp PKGBUILD aur-repo/PKGBUILD
-          sed -i "s|REPLACE_ME|$SHA256|" aur-repo/PKGBUILD
-          cd aur-repo
-          makepkg --printsrcinfo > .SRCINFO
-          git add PKGBUILD .SRCINFO
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git commit -m "Update to ${TAG}" || echo "No changes to commit"
-          git push origin master || git push origin main || true
+          if [ -n "${{ secrets.AUR_SSH_KEY }}" ]; then
+            VERSION=${TAG#v}
+            cp PKGBUILD aur-repo/PKGBUILD
+            sed -i "s|REPLACE_ME|$SHA256|" aur-repo/PKGBUILD
+            cd aur-repo
+            makepkg --printsrcinfo > .SRCINFO
+            git add PKGBUILD .SRCINFO
+            git config user.name "github-actions"
+            git config user.email "actions@github.com"
+            git commit -m "Update to ${TAG}" || echo "No changes to commit"
+            git push origin master || git push origin main || true
+          else
+            echo "No AUR SSH key provided, skipping."
+          fi
