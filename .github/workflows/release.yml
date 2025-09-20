@@ -58,17 +58,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compute SHA256 of wheel and update PKGBUILD
+      - name: Update PKGBUILD version and SHA256
         run: |
+          TAG=${{ github.ref_name }}
+          VERSION=${TAG#v}
+          echo "Updating PKGBUILD to version $VERSION"
+          # Update pkgver
+          sed -i "s/^pkgver=.*/pkgver=$VERSION/" PKGBUILD
+          # Update source URL
+          sed -i "s|source=(\".*\")|source=(\"https://github.com/rohankrsingh/ai-pkg/releases/download/v$VERSION/ai-pkg-$VERSION-py3-none-any.whl\")|" PKGBUILD
+          # Compute new SHA256
           FILE=$(ls dist/*.whl | head -n 1)
-          if [ ! -f "$FILE" ]; then
-            echo "ERROR: Wheel file not found in dist/"
-            exit 1
-          fi
-          echo "Found wheel: $FILE"
           SHA256=$(sha256sum "$FILE" | cut -d ' ' -f1)
-          echo "Computed SHA256: $SHA256"
-          sed -i "s|REPLACE_ME|$SHA256|" PKGBUILD
+          sed -i "s|sha256sums=('REPLACE_ME')|sha256sums=('$SHA256')|" PKGBUILD
+          echo "PKGBUILD updated"
+
 
   aur-publish:
     needs: build-and-release
