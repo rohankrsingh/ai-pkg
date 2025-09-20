@@ -14,29 +14,52 @@ jobs:
   build-and-release:
     runs-on: ubuntu-latest
     steps:
+      # ------------------------
+      # 1️⃣ Checkout repo with tags
+      # ------------------------
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # important to fetch all tags
 
+      # ------------------------
+      # 2️⃣ Set up Python
+      # ------------------------
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
+      # ------------------------
+      # 3️⃣ Install build tools
+      # ------------------------
       - name: Install build tools
         run: |
           python -m pip install --upgrade pip
           pip install build installer
 
+      # ------------------------
+      # 4️⃣ Extract version from tag
+      # ------------------------
       - name: Extract version from tag
         id: version
         run: |
-          TAG=${{ github.ref_name }}
-          VERSION=${TAG#v}
+          echo "Git ref: $GITHUB_REF"
+          TAG=${GITHUB_REF#refs/tags/}   # remove refs/tags/
+          VERSION=${TAG#v}               # remove leading v
+          echo "TAG=$TAG"
+          echo "VERSION=$VERSION"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
+      # ------------------------
+      # 5️⃣ Build wheel
+      # ------------------------
       - name: Build wheel
         run: python -m build
 
+      # ------------------------
+      # 6️⃣ Update PKGBUILD dynamically
+      # ------------------------
       - name: Update PKGBUILD dynamically
         run: |
           echo "Updating PKGBUILD with version $VERSION and SHA256"
@@ -45,7 +68,7 @@ jobs:
           sed -i "s/^pkgver=.*/pkgver=$VERSION/" PKGBUILD
 
           # Update source URL to include tag
-          sed -i "s|source=(\".*\")|source=(\"https://github.com/rohankrsingh/ai-pkg/releases/tag/v$VERSION/ai-pkg-$VERSION-py3-none-any.whl\")|" PKGBUILD
+          sed -i "s|source=(\".*\")|source=(\"https://github.com/rohankrsingh/ai-pkg/releases/download/$TAG/ai-pkg-$VERSION-py3-none-any.whl\")|" PKGBUILD
 
           # Compute SHA256 from built wheel
           FILE=$(ls dist/*.whl | head -n 1)
@@ -55,6 +78,9 @@ jobs:
           echo "PKGBUILD updated successfully"
           cat PKGBUILD | grep -E "pkgver|sha256sums|source"
 
+      # ------------------------
+      # 7️⃣ Create GitHub release
+      # ------------------------
       - name: Create GitHub release
         uses: softprops/action-gh-release@v1
         with:
@@ -66,9 +92,17 @@ jobs:
     needs: build-and-release
     runs-on: ubuntu-latest
     steps:
+      # ------------------------
+      # 1️⃣ Checkout repo with tags
+      # ------------------------
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
+      # ------------------------
+      # 2️⃣ Publish updated PKGBUILD to AUR
+      # ------------------------
       - name: Publish to AUR
         uses: KSXGitHub/github-actions-deploy-aur@v2.7.0
         with:
