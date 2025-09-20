@@ -52,38 +52,46 @@ jobs:
           sudo apt-get install -y wget git make
 
       - name: Prepare SSH for AUR (requires secret AUR_SSH_KEY)
-        if: ${{ secrets.AUR_SSH_KEY != '' }}
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.AUR_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+          if [ -n "${{ secrets.AUR_SSH_KEY }}" ]; then
+            mkdir -p ~/.ssh
+            echo "${{ secrets.AUR_SSH_KEY }}" > ~/.ssh/id_rsa
+            chmod 600 ~/.ssh/id_rsa
+            ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+          else
+            echo "No AUR SSH key provided, skipping."
+          fi
 
       - name: Clone AUR repo
-        if: ${{ secrets.AUR_SSH_KEY != '' }}
         run: |
-          git clone ssh://aur@aur.archlinux.org/ai-pkg-bin.git aur-repo
+          if [ -n "${{ secrets.AUR_SSH_KEY }}" ]; then
+            git clone ssh://aur@aur.archlinux.org/ai-pkg-bin.git aur-repo
+          else
+            echo "No AUR SSH key provided, skipping."
+          fi
 
       - name: Download wheel from GitHub Release
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          # Convert tag vX.Y.Z -> X.Y.Z
           VERSION=${TAG#v}
           echo "Version: $VERSION"
           wget "https://github.com/rohankrsingh/ai-pkg/releases/download/${TAG}/ai-pkg-${VERSION}-py3-none-any.whl" -O "ai-pkg-${VERSION}-py3-none-any.whl"
 
-      - name: Update PKGBUILD with checksum and .SRCINFO (in aur-repo)
-        if: ${{ secrets.AUR_SSH_KEY != '' }}
+      - name: Update PKGBUILD with checksum and .SRCINFO
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          VERSION=${TAG#v}
-          python3 scripts/update_pkgbuild.py aur-repo/PKGBUILD "ai-pkg-${VERSION}-py3-none-any.whl"
-          cd aur-repo
-          makepkg --printsrcinfo > .SRCINFO
-          git add PKGBUILD .SRCINFO
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git commit -m "Update to ${TAG}" || echo "No changes to commit"
-          git push origin master || git push origin main || true
+          if [ -n "${{ secrets.AUR_SSH_KEY }}" ]; then
+            VERSION=${TAG#v}
+            python3 scripts/update_pkgbuild.py aur-repo/PKGBUILD "ai-pkg-${VERSION}-py3-none-any.whl"
+            cd aur-repo
+            makepkg --printsrcinfo > .SRCINFO
+            git add PKGBUILD .SRCINFO
+            git config user.name "github-actions"
+            git config user.email "actions@github.com"
+            git commit -m "Update to ${TAG}" || echo "No changes to commit"
+            git push origin master || git push origin main || true
+          else
+            echo "No AUR SSH key provided, skipping."
+          fi
