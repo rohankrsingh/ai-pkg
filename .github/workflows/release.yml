@@ -1,0 +1,99 @@
+name: Release (PyPI + GitHub Release + AUR)
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  PKG_NAME: ai-pkg
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build distribution
+        run: python -m build
+
+      - name: Create GitHub release and upload artifacts
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*
+
+      - name: Publish to PyPI
+        if: secrets.PYPI_API_TOKEN != ''
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install twine
+          twine upload dist/*
+
+  aur:
+    name: Update AUR PKGBUILD
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo (main)
+        uses: actions/checkout@v4
+
+      - name: Set up Python (for helper script)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install wget and git
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y wget git makepkg
+
+      - name: Prepare SSH for AUR (requires secret AUR_SSH_KEY)
+        if: secrets.AUR_SSH_KEY != ''
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AUR_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+
+      - name: Clone AUR repo
+        if: secrets.AUR_SSH_KEY != ''
+        run: |
+          git clone ssh://aur@aur.archlinux.org/ai-pkg-bin.git aur-repo
+
+      - name: Download wheel from GitHub Release
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Convert tag vX.Y.Z -> X.Y.Z
+          VERSION=${TAG#v}
+          echo "Version: $VERSION"
+          wget "https://github.com/rohankrsingh/ai-pkg/releases/download/${TAG}/ai-pkg-${VERSION}-py3-none-any.whl" -O "ai-pkg-${VERSION}-py3-none-any.whl"
+
+      - name: Update PKGBUILD with checksum and .SRCINFO (in aur-repo)
+        if: secrets.AUR_SSH_KEY != ''
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          VERSION=${TAG#v}
+          python3 scripts/update_pkgbuild.py aur-repo/PKGBUILD "ai-pkg-${VERSION}-py3-none-any.whl"
+          cd aur-repo
+          makepkg --printsrcinfo > .SRCINFO
+          git add PKGBUILD .SRCINFO
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git commit -m "Update to ${TAG}" || echo "No changes to commit"
+          git push origin master || git push origin main || true

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Project-local launcher for ai-pkg using .venv
+project_dir="$(cd "$(dirname "$0")/.." && pwd)"
+if [ -x "$project_dir/.venv/bin/python" ]; then
+  exec "$project_dir/.venv/bin/python" -m ai_pkg.cli "$@"
+else
+  echo "No .venv/python found. Activate or install ai-pkg globally."
+  exit 1
+fi

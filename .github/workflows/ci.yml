@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies (dev)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest flake8 black
+
+      - name: Run tests
+        run: pytest -q
+
+      - name: Run lint (flake8 + black check)
+        run: |
+          flake8 src tests || true
+          black --check src || true
