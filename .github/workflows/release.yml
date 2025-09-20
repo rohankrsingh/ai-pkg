@@ -1,4 +1,4 @@
-name: Release (PyPI + GitHub Release + AUR)
+name: Release (GitHub Release + AUR)
 
 on:
   push:
@@ -33,9 +33,6 @@ jobs:
         with:
           files: dist/*
 
-      # PyPI upload removed: this project does not publish to PyPI
-      # If you add PyPI support in the future, add a step here using twine.
-
   aur:
     name: Update AUR PKGBUILD
     needs: build-and-publish
@@ -52,10 +49,10 @@ jobs:
       - name: Install wget and git
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y wget git makepkg
+          sudo apt-get install -y wget git make
 
       - name: Prepare SSH for AUR (requires secret AUR_SSH_KEY)
-        if: secrets.AUR_SSH_KEY != ''
+        if: ${{ secrets.AUR_SSH_KEY != '' }}
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.AUR_SSH_KEY }}" > ~/.ssh/id_rsa
@@ -63,7 +60,7 @@ jobs:
           ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
 
       - name: Clone AUR repo
-        if: secrets.AUR_SSH_KEY != ''
+        if: ${{ secrets.AUR_SSH_KEY != '' }}
         run: |
           git clone ssh://aur@aur.archlinux.org/ai-pkg-bin.git aur-repo
 
@@ -77,7 +74,7 @@ jobs:
           wget "https://github.com/rohankrsingh/ai-pkg/releases/download/${TAG}/ai-pkg-${VERSION}-py3-none-any.whl" -O "ai-pkg-${VERSION}-py3-none-any.whl"
 
       - name: Update PKGBUILD with checksum and .SRCINFO (in aur-repo)
-        if: secrets.AUR_SSH_KEY != ''
+        if: ${{ secrets.AUR_SSH_KEY != '' }}
         env:
           TAG: ${{ github.ref_name }}
         run: |
