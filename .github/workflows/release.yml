@@ -34,23 +34,26 @@ jobs:
           VERSION=${TAG#v}
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-      - name: Update pyproject.toml version
-        run: |
-          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
-          echo "Updated pyproject.toml to $VERSION"
-
       - name: Build wheel
         run: python -m build
 
       - name: Update PKGBUILD dynamically
         run: |
           echo "Updating PKGBUILD with version $VERSION and SHA256"
+
+          # Update pkgver
           sed -i "s/^pkgver=.*/pkgver=$VERSION/" PKGBUILD
+
+          # Update source URL to include tag
           sed -i "s|source=(\".*\")|source=(\"https://github.com/rohankrsingh/ai-pkg/releases/tag/v$VERSION/ai-pkg-$VERSION-py3-none-any.whl\")|" PKGBUILD
+
+          # Compute SHA256 from built wheel
           FILE=$(ls dist/*.whl | head -n 1)
           SHA256=$(sha256sum "$FILE" | cut -d ' ' -f1)
           sed -i "s|sha256sums=('REPLACE_ME')|sha256sums=('$SHA256')|" PKGBUILD
+
           echo "PKGBUILD updated successfully"
+          cat PKGBUILD | grep -E "pkgver|sha256sums|source"
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v1
