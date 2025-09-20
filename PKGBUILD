@@ -11,10 +11,10 @@ makedepends=('python-build' 'python-installer' 'python-wheel' 'python-setuptools
 provides=('ai-pkg')
 conflicts=('ai-pkg')
 
-source=("${url}/releases/download/v${pkgver}/ai-pkg-${pkgver}-py3-none-any.whl")
+source=("${url}/releases/tag/v${pkgver}/ai-pkg-${pkgver}.whl")
 sha256sums=('REPLACE_ME')
 
 package() {
     cd "$srcdir"
-    python -m installer --destdir="$pkgdir" ai_pkg-${pkgver}-py3-none-any.whl
+    python -m installer --destdir="$pkgdir" ai_pkg-${pkgver}.whl
 }
