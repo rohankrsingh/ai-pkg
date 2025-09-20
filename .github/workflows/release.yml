@@ -46,7 +46,7 @@ jobs:
         run: |
           echo "Updating PKGBUILD with version $VERSION and SHA256"
           sed -i "s/^pkgver=.*/pkgver=$VERSION/" PKGBUILD
-          sed -i "s|source=(\".*\")|source=(\"https://github.com/rohankrsingh/ai-pkg/releases/download/v$VERSION/ai-pkg-$VERSION-py3-none-any.whl\")|" PKGBUILD
+          sed -i "s|source=(\".*\")|source=(\"https://github.com/rohankrsingh/ai-pkg/releases/tag/v$VERSION/ai-pkg-$VERSION-py3-none-any.whl\")|" PKGBUILD
           FILE=$(ls dist/*.whl | head -n 1)
           SHA256=$(sha256sum "$FILE" | cut -d ' ' -f1)
           sed -i "s|sha256sums=('REPLACE_ME')|sha256sums=('$SHA256')|" PKGBUILD
