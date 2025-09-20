@@ -30,6 +30,11 @@ jobs:
       - name: Build wheel
         run: python -m build
 
+      - name: List wheel files
+        run: |
+          echo "Files in dist/:"
+          ls -l dist/
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v1
         with:
@@ -38,15 +43,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compute SHA256 of wheel and update PKGBUILD
-        env:
-          TAG: ${{ github.ref_name }}
         run: |
-          VERSION=${TAG#v}
-          FILE=dist/ai-pkg-${VERSION}-py3-none-any.whl
+          FILE=$(ls dist/*.whl | head -n 1)
           if [ ! -f "$FILE" ]; then
-            echo "ERROR: Wheel file not found: $FILE"
+            echo "ERROR: Wheel file not found in dist/"
             exit 1
           fi
+          echo "Found wheel: $FILE"
           SHA256=$(sha256sum "$FILE" | cut -d ' ' -f1)
           echo "Computed SHA256: $SHA256"
           sed -i "s|REPLACE_ME|$SHA256|" PKGBUILD
