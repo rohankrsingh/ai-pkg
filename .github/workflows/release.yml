@@ -41,8 +41,10 @@ jobs:
       - name: Normalize wheel name
         run: |
           FILE=$(ls dist/*.whl | head -n 1)
-          VERSION=${VERSION}
-          NEW_NAME="dist/ai-pkg-${VERSION}.whl"
+          VERSION=${{ github.ref_name }}
+          VERSION=${VERSION#v}
+          BASENAME=$(basename "$FILE" | sed "s/[0-9]\+\.[0-9]\+\.[0-9]\+/$VERSION/")
+          NEW_NAME="dist/$BASENAME"
           mv "$FILE" "$NEW_NAME"
           echo "Renamed wheel to $NEW_NAME"
 
