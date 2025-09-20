@@ -39,5 +39,31 @@ pipx install --editable .
 - Run tests: `pytest`
 - Lint: `flake8 src` and `black --check src`
 
+## Updating
+
+**If installed with pipx (PyPI):**
+```bash
+pipx upgrade ai-pkg
+```
+
+**If installed from the AUR:**
+```bash
+yay -Syu ai-pkg-bin
+# or
+paru -Syu ai-pkg-bin
+```
+
+**If installed from source (editable):**
+```bash
+cd ai-pkg
+git pull
+pipx install --editable .
+```
+
+**If using install.sh:**
+```bash
+./install.sh
+```
+
 ## License
 MIT (add LICENSE file)
