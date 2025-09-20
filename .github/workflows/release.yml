@@ -11,11 +11,11 @@ env:
   PKG_NAME: ai-pkg-bin
 
 jobs:
-  build-and-release:
+  build-and-publish:
     runs-on: ubuntu-latest
     steps:
       # ------------------------
-      # 1️⃣ Checkout repo with tags
+      # 1️⃣ Checkout repo with full history
       # ------------------------
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -44,9 +44,8 @@ jobs:
       - name: Extract version from tag
         id: version
         run: |
-          echo "Git ref: $GITHUB_REF"
           TAG=${GITHUB_REF#refs/tags/}   # remove refs/tags/
-          VERSION=${TAG#v}               # remove leading v
+          VERSION=${TAG#v}               # remove leading 'v'
           echo "TAG=$TAG"
           echo "VERSION=$VERSION"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
@@ -58,28 +57,38 @@ jobs:
         run: python -m build
 
       # ------------------------
-      # 6️⃣ Update PKGBUILD dynamically
+      # 6️⃣ Rename wheel (normalized)
       # ------------------------
-      - name: Update PKGBUILD dynamically
+      - name: Normalize wheel name
+        run: |
+          FILE=$(ls dist/*.whl | head -n 1)
+          NEW_NAME="dist/ai-pkg-${VERSION}-py3-none-any.whl"
+          mv "$FILE" "$NEW_NAME"
+          echo "Renamed wheel to $NEW_NAME"
+
+      # ------------------------
+      # 7️⃣ Update PKGBUILD dynamically
+      # ------------------------
+      - name: Update PKGBUILD
         run: |
           echo "Updating PKGBUILD with version $VERSION and SHA256"
 
           # Update pkgver
           sed -i "s/^pkgver=.*/pkgver=$VERSION/" PKGBUILD
 
-          # Update source URL to include tag
-          sed -i "s|source=(\".*\")|source=(\"https://github.com/rohankrsingh/ai-pkg/releases/download/$TAG/ai-pkg-$VERSION-py3-none-any.whl\")|" PKGBUILD
+          # Keep the same source URL pattern (with tag and version)
+          sed -i "s|source=(\".*\")|source=(\"https://github.com/rohankrsingh/ai-pkg/releases/tag/v$VERSION/ai-pkg-$VERSION-py3-none-any.whl\")|" PKGBUILD
 
           # Compute SHA256 from built wheel
           FILE=$(ls dist/*.whl | head -n 1)
           SHA256=$(sha256sum "$FILE" | cut -d ' ' -f1)
           sed -i "s|sha256sums=('REPLACE_ME')|sha256sums=('$SHA256')|" PKGBUILD
 
-          echo "PKGBUILD updated successfully"
-          cat PKGBUILD | grep -E "pkgver|sha256sums|source"
+          echo "PKGBUILD updated:"
+          grep -E "pkgver|sha256sums|source" PKGBUILD
 
       # ------------------------
-      # 7️⃣ Create GitHub release
+      # 8️⃣ Create GitHub release
       # ------------------------
       - name: Create GitHub release
         uses: softprops/action-gh-release@v1
@@ -88,20 +97,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  aur-publish:
-    needs: build-and-release
-    runs-on: ubuntu-latest
-    steps:
       # ------------------------
-      # 1️⃣ Checkout repo with tags
-      # ------------------------
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # ------------------------
-      # 2️⃣ Publish updated PKGBUILD to AUR
+      # 9️⃣ Publish to AUR
       # ------------------------
       - name: Publish to AUR
         uses: KSXGitHub/github-actions-deploy-aur@v2.7.0
