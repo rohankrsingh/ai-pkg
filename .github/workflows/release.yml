@@ -67,6 +67,16 @@ jobs:
           echo "Renamed wheel to $NEW_NAME"
 
       # ------------------------
+      # 8️⃣ Create GitHub release
+      # ------------------------
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ------------------------
       # 7️⃣ Update PKGBUILD dynamically
       # ------------------------
       - name: Update PKGBUILD
@@ -86,16 +96,6 @@ jobs:
 
           echo "PKGBUILD updated:"
           grep -E "pkgver|sha256sums|source" PKGBUILD
-
-      # ------------------------
-      # 8️⃣ Create GitHub release
-      # ------------------------
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: dist/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # ------------------------
       # 9️⃣ Publish to AUR
