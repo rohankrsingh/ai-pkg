@@ -88,6 +88,8 @@ jobs:
 
           # Keep the same source URL pattern (with tag and version)
           sed -i "s|source=(\".*\")|source=(\"https://github.com/rohankrsingh/ai-pkg/releases/tag/v$VERSION/ai-pkg-$VERSION-py3-none-any.whl\")|" PKGBUILD
+          # Patch package() to install any .whl (avoid hardcoding)
+          sed -i "s|python -m installer --destdir=\"\$pkgdir\" .*|python -m installer --destdir=\"\$pkgdir\" ./*.whl|" PKGBUILD
 
           # Compute SHA256 from built wheel
           FILE=$(ls dist/*.whl | head -n 1)
