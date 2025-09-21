@@ -17,5 +17,5 @@ sha256sums=('REPLACE_ME')
 
 package() {
     cd "$srcdir"
-    python -m installer --destdir="$pkgdir" ai-pkg-${pkgver}-py3-none-any.whl
+    python -m installer --destdir="$pkgdir" ./*.whl
 }
