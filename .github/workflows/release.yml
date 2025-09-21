@@ -51,23 +51,13 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       # ------------------------
-      # 5️⃣ Build wheel
+      # 5️⃣ Build wheel (setuptools-scm automatically uses git tag version)
       # ------------------------
       - name: Build wheel
         run: python -m build
 
       # ------------------------
-      # 6️⃣ Rename wheel (normalized)
-      # ------------------------
-      - name: Normalize wheel name
-        run: |
-          FILE=$(ls dist/*.whl | head -n 1)
-          NEW_NAME="dist/ai-pkg-${VERSION}-py3-none-any.whl"
-          mv "$FILE" "$NEW_NAME"
-          echo "Renamed wheel to $NEW_NAME"
-
-      # ------------------------
-      # 7️⃣ Create GitHub release
+      # 6️⃣ Create GitHub release
       # ------------------------
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
@@ -77,31 +67,34 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # ------------------------
-      # 8️⃣ Update PKGBUILD dynamically
+      # 7️⃣ Update PKGBUILD dynamically
       # ------------------------
       - name: Update PKGBUILD
         run: |
           echo "Updating PKGBUILD with version $VERSION and SHA256"
 
+          # Get the actual built wheel filename
+          WHEEL_FILE=$(ls dist/*.whl | head -n 1 | xargs basename)
+          echo "Built wheel: $WHEEL_FILE"
+
           # Update pkgver
           sed -i "s/^pkgver=.*/pkgver=$VERSION/" PKGBUILD
 
-          # FIX: Use /releases/download/ instead of /releases/tag/
-          sed -i "s|source=(\".*\")|source=(\"https://github.com/rohankrsingh/ai-pkg/releases/download/v$VERSION/ai-pkg-$VERSION-py3-none-any.whl\")|" PKGBUILD
+          # Update source with actual wheel filename
+          sed -i "s|source=(\".*\")|source=(\"https://github.com/rohankrsingh/ai-pkg/releases/download/v$VERSION/$WHEEL_FILE\")|" PKGBUILD
           
-          # Patch package() to install any .whl (avoid hardcoding)
-          sed -i "s|python -m installer --destdir=\"\$pkgdir\" .*|python -m installer --destdir=\"\$pkgdir\" ./*.whl|" PKGBUILD
+          # Update package function to use actual wheel filename
+          sed -i "s|python -m installer --destdir=\"\$pkgdir\" .*|python -m installer --destdir=\"\$pkgdir\" $WHEEL_FILE|" PKGBUILD
 
           # Compute SHA256 from built wheel
-          FILE=$(ls dist/*.whl | head -n 1)
-          SHA256=$(sha256sum "$FILE" | cut -d ' ' -f1)
+          SHA256=$(sha256sum "dist/$WHEEL_FILE" | cut -d ' ' -f1)
           sed -i "s|sha256sums=('REPLACE_ME')|sha256sums=('$SHA256')|" PKGBUILD
 
           echo "PKGBUILD updated:"
           grep -E "pkgver|sha256sums|source" PKGBUILD
 
       # ------------------------
-      # 9️⃣ Publish to AUR
+      # 8️⃣ Publish to AUR
       # ------------------------
       - name: Publish to AUR
         uses: KSXGitHub/github-actions-deploy-aur@v2.7.0
