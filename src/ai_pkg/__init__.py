@@ -1,5 +1,5 @@
 """
-AIPkg - Your AI-Powered Development Environment Wizard for Arch Linux
+ai-pkg - Your AI-Powered Development Environment Wizard for Arch Linux
 Transform plain English into perfectly crafted development environments
 """
 
