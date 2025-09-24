@@ -5,8 +5,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ai-pkg"
 dynamic = ["version"]
-description = "AI-powered package recommender for Arch Linux"
-authors = [{ name = "Your Name", email = "you@example.com" }]
+description = "Your AI-Powered Development Environment Wizard for Arch Linux - Transform plain English into perfectly crafted development environments"
+authors = [{ name = "Rohan Kumar Singh", email = "you@example.com" }]
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
@@ -20,7 +20,7 @@ dependencies = [
 ai-pkg = "ai_pkg.cli:app"
 
 [project.optional-dependencies]
-dev = ["pytest", "flake8", "black"]
+dev = ["pytest", "flake8", "black", "setuptools_scm>=8"]
 
 [tool.setuptools_scm]
 # Automatically uses git tags for version

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "🚀 Installing ai-pkg (AI-powered package recommender for Arch Linux)..."
+echo "🌟 Installing AIPkg - Your AI-Powered Development Environment Wizard"
+echo "✨ Transform plain English into perfectly crafted development environments!"
 
 if ! command -v pacman &>/dev/null; then
     echo "❌ This installer is intended for Arch Linux or derivatives."
