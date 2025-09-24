@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "🌟 Installing AIPkg - Your AI-Powered Development Environment Wizard"
+echo "🌟 Installing ai-pkg - Your AI-Powered Development Environment Wizard"
 echo "✨ Transform plain English into perfectly crafted development environments!"
 
 if ! command -v pacman &>/dev/null; then

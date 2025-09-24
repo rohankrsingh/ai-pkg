@@ -15,13 +15,6 @@ source=("${url}/releases/download/v${pkgver}/ai-pkg-${pkgver}-py3-none-any.whl")
 sha256sums=('REPLACE_ME')
 
 package() {
-<<<<<<< HEAD
     cd "$srcdir"
     python -m installer --destdir="$pkgdir" ai-pkg-${pkgver}-py3-none-any.whl
 }
-=======
-    cd "$srcdir"  
-    python -m installer --destdir="$pkgdir" ai_pkg-${pkgver}-py3-none-any.whl
-}
-
->>>>>>> 65f1c88 (update release.yml)

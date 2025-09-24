@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "ai-pkg"
 dynamic = ["version"]
 description = "Your AI-Powered Development Environment Wizard for Arch Linux - Transform plain English into perfectly crafted development environments"
-authors = [{ name = "Rohan Kumar Singh", email = "you@example.com" }]
+authors = [{ name = "Rohan Kumar Singh", email = "rohankrsingh125@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
