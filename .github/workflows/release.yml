@@ -1,0 +1,108 @@
+name: Release + Publish to AUR
+
+on:
+  push:
+    tags:
+      - "v*"        # Trigger on new tags
+    paths:
+      - PKGBUILD
+
+env:
+  PKG_NAME: ai-pkg-bin
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      # ------------------------
+      # 1️⃣ Checkout repo with full history
+      # ------------------------
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # important to fetch all tags
+
+      # ------------------------
+      # 2️⃣ Set up Python
+      # ------------------------
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # ------------------------
+      # 3️⃣ Install build tools
+      # ------------------------
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build installer
+
+      # ------------------------
+      # 4️⃣ Extract version from tag
+      # ------------------------
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}   # remove refs/tags/
+          VERSION=${TAG#v}               # remove leading 'v'
+          echo "TAG=$TAG"
+          echo "VERSION=$VERSION"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      # ------------------------
+      # 5️⃣ Build wheel (setuptools-scm automatically uses git tag version)
+      # ------------------------
+      - name: Build wheel
+        run: python -m build
+
+      # ------------------------
+      # 6️⃣ Create GitHub release
+      # ------------------------
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ------------------------
+      # 7️⃣ Update PKGBUILD dynamically
+      # ------------------------
+      - name: Update PKGBUILD
+        run: |
+          echo "Updating PKGBUILD with version $VERSION and SHA256"
+
+          # Get the actual built wheel filename
+          WHEEL_FILE=$(ls dist/*.whl | head -n 1 | xargs basename)
+          echo "Built wheel: $WHEEL_FILE"
+
+          # Update pkgver
+          sed -i "s/^pkgver=.*/pkgver=$VERSION/" PKGBUILD
+
+          # Update source with actual wheel filename
+          sed -i "s|source=(\".*\")|source=(\"https://github.com/rohankrsingh/ai-pkg/releases/download/v$VERSION/$WHEEL_FILE\")|" PKGBUILD
+          
+          # Update package function to use actual wheel filename
+          sed -i "s|python -m installer --destdir=\"\$pkgdir\" .*|python -m installer --destdir=\"\$pkgdir\" $WHEEL_FILE|" PKGBUILD
+
+          # Compute SHA256 from built wheel
+          SHA256=$(sha256sum "dist/$WHEEL_FILE" | cut -d ' ' -f1)
+          sed -i "s|sha256sums=('REPLACE_ME')|sha256sums=('$SHA256')|" PKGBUILD
+
+          echo "PKGBUILD updated:"
+          grep -E "pkgver|sha256sums|source" PKGBUILD
+
+      # ------------------------
+      # 8️⃣ Publish to AUR
+      # ------------------------
+      - name: Publish to AUR
+        uses: KSXGitHub/github-actions-deploy-aur@v2.7.0
+        with:
+          pkgname: ai-pkg-bin
+          pkgbuild: ./PKGBUILD
+          commit_username: "rohankrsingh"
+          commit_email: ${{ secrets.AUR_EMAIL }}
+          ssh_private_key: ${{ secrets.AUR_SSH_KEY }}
+          commit_message: "Update to ${{ github.ref_name }}"
+          ssh_keyscan_types: rsa,ecdsa,ed25519

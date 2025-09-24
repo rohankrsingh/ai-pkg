@@ -1,15 +1,14 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=64", "setuptools-scm>=8", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-pkg"
-version = "0.1.0"
+dynamic = ["version"]
 description = "AI-powered package recommender for Arch Linux"
 authors = [{ name = "Your Name", email = "you@example.com" }]
 readme = "README.md"
 requires-python = ">=3.9"
-
 dependencies = [
     "typer",
     "requests",
@@ -22,3 +21,8 @@ ai-pkg = "ai_pkg.cli:app"
 
 [project.optional-dependencies]
 dev = ["pytest", "flake8", "black"]
+
+[tool.setuptools_scm]
+# Automatically uses git tags for version
+# Fallback version for development builds
+fallback_version = "0.0.0+dev"
