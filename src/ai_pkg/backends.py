@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 import requests
 from typing import Any
 
@@ -62,14 +63,27 @@ def suggest_with_gemini(goal: str, api_key: str):
         "IMPORTANT: Respond with ONLY valid JSON (no markdown, no surrounding backticks). The JSON must be either an object with keys 'packages' and 'env_steps', or simply an array of package names (legacy).\n"
         f"Task: Provide environment steps and packages needed to {goal}\n"
         "Prefer pacman package names and keep commands idempotent. When suggesting pacman install commands, prefer using '--needed' so packages already installed are skipped.\n"
-        "Example object response: {\"env_steps\": [\"python -m venv .venv\", \". .venv/bin/activate\"], \"packages\": [\"python\", \"git\"] }\n"
+        "Example object response: {\"env_steps\": [\"python -m venv .venv\", \"source .venv/bin/activate\"], \"packages\": [\"python\", \"git\"] }\n"
     )
 
     # Prefer using google-genai client
     if genai is not None:
         try:
             client = genai.Client()
-            response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt_text)
+            # Retry a few times for transient server-side overloads (503).
+            max_attempts = 3
+            response = None
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt_text)
+                    break
+                except Exception as e:
+                    # If this was the last attempt, re-raise to be caught by outer except
+                    if attempt == max_attempts:
+                        raise
+                    logger.warning('Gemini client transient error (attempt %d/%d): %s', attempt, max_attempts, e)
+                    # exponential backoff
+                    time.sleep(2 ** (attempt - 1))
             # Attempt to extract text safely from likely response shapes
             text = None
             try:

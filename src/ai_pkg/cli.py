@@ -62,10 +62,20 @@ def main(
             if not should_run_env:
                 # Ask the user interactively
                 should_run_env = typer.confirm("Run the environment setup steps now?")
-            if should_run_env:
-                for cmd in env_steps:
-                    typer.secho(f"Running: {cmd}", fg=typer.colors.YELLOW)
-                    subprocess.run(cmd, shell=True)
+                if should_run_env:
+                    # Run environment setup steps in a single shell session so that
+                    # activation (source / .) affects subsequent commands. When we
+                    # previously ran each command in its own subprocess, the venv
+                    # activation didn't persist and later `pip install` used the
+                    # system pip (triggering PEP 668 'externally-managed-environment').
+                    # Combining with && preserves state across the sequence.
+                    combined = " && ".join(env_steps)
+                    typer.secho(f"Running: {combined}", fg=typer.colors.YELLOW)
+                    # Use bash so `source` and `.` are available as builtins.
+                    result = subprocess.run(combined, shell=True, executable="/bin/bash")
+                    if result.returncode != 0:
+                        typer.secho("❌ Environment setup steps failed.", fg=typer.colors.RED)
+                        raise typer.Exit(result.returncode)
 
     if dry_run:
         core.install_packages(pkgs, dry_run=True, auto_yes=yes, aur_helper=aur_helper_final)

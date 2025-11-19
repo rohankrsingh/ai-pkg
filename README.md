@@ -2,7 +2,7 @@
   <img src="https://raw.githubusercontent.com/rohankrsingh/ai-pkg/main/.github/assets/banner.png" alt="AI-PKG Banner" width="600"/>
 </p>
 
-<h1 align="center">🌟 ai-pkg</h1>
+<h1 align="center">ai-pkg</h1>
 
 <p align="center">
   <strong>Your AI-Powered Development Environment Wizard for Arch Linux</strong>
