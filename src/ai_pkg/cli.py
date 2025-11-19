@@ -50,33 +50,13 @@ def main(
 
     typer.secho(f"\n📦 Suggested packages: {', '.join(pkgs)}", fg=typer.colors.CYAN, bold=True)
 
+    # Show environment steps (but install packages first)
     if env_steps:
         typer.secho("\n🔧 Recommended environment setup steps:", fg=typer.colors.GREEN, bold=True)
         for i, cmd in enumerate(env_steps, start=1):
             typer.secho(f"  {i}. {cmd}", fg=typer.colors.WHITE)
 
-        if dry_run:
-            typer.secho("\n[DRY RUN] Would run env steps above.", fg=typer.colors.MAGENTA)
-        else:
-            should_run_env = run_env or yes
-            if not should_run_env:
-                # Ask the user interactively
-                should_run_env = typer.confirm("Run the environment setup steps now?")
-                if should_run_env:
-                    # Run environment setup steps in a single shell session so that
-                    # activation (source / .) affects subsequent commands. When we
-                    # previously ran each command in its own subprocess, the venv
-                    # activation didn't persist and later `pip install` used the
-                    # system pip (triggering PEP 668 'externally-managed-environment').
-                    # Combining with && preserves state across the sequence.
-                    combined = " && ".join(env_steps)
-                    typer.secho(f"Running: {combined}", fg=typer.colors.YELLOW)
-                    # Use bash so `source` and `.` are available as builtins.
-                    result = subprocess.run(combined, shell=True, executable="/bin/bash")
-                    if result.returncode != 0:
-                        typer.secho("❌ Environment setup steps failed.", fg=typer.colors.RED)
-                        raise typer.Exit(result.returncode)
-
+    # Install packages first (pacman / AUR)
     if dry_run:
         core.install_packages(pkgs, dry_run=True, auto_yes=yes, aur_helper=aur_helper_final)
         return
@@ -88,3 +68,37 @@ def main(
             raise typer.Exit(0)
 
     core.install_packages(pkgs, dry_run=False, auto_yes=yes, aur_helper=aur_helper_final)
+
+    # After packages are installed, run any remaining env steps (but skip system installs)
+    if not env_steps:
+        return
+
+    # Filter out env steps that appear to be system package installs (pacman)
+    filtered = []
+    skipped = []
+    for cmd in env_steps:
+        lower = cmd.strip().lower()
+        if lower.startswith('pacman') or ' pacman ' in lower or 'sudo pacman' in lower:
+            skipped.append(cmd)
+        else:
+            filtered.append(cmd)
+
+    if skipped:
+        typer.secho("\nNote: skipped system-package env steps (already handled):", fg=typer.colors.YELLOW)
+        for s in skipped:
+            typer.secho(f"  - {s}", fg=typer.colors.WHITE)
+
+    if not filtered:
+        return
+
+    should_run_env = run_env or yes
+    if not should_run_env:
+        should_run_env = typer.confirm("Run the remaining environment setup steps now?")
+
+    if should_run_env:
+        combined = " && ".join(filtered)
+        typer.secho(f"Running: {combined}", fg=typer.colors.YELLOW)
+        result = subprocess.run(combined, shell=True, executable="/bin/bash")
+        if result.returncode != 0:
+            typer.secho("❌ Environment setup steps failed.", fg=typer.colors.RED)
+            raise typer.Exit(result.returncode)

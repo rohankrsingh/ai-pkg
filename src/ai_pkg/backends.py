@@ -1,8 +1,7 @@
 import json
 import logging
 import time
-import requests
-from typing import Any
+from typing import Any, Union, List, Dict
 
 try:
     from google import genai
@@ -20,137 +19,98 @@ def _extract_json_from_text(text: str) -> Any:
     if not text:
         return None
     content = text.strip()
-    # Try to parse whole text first
     try:
         return json.loads(content)
-    except Exception:
+    except json.JSONDecodeError:
         pass
 
-    # Find first JSON-like substring (object or array)
-    if '{' in content:
-        start = content.find('{')
-        end = content.rfind('}') + 1
-        if end > start:
+    # Attempt to extract JSON object or array substrings
+    for open_char, close_char in [('{', '}'), ('[', ']')]:
+        start = content.find(open_char)
+        end = content.rfind(close_char) + 1
+        if start != -1 and end > start:
             payload = content[start:end]
             try:
                 return json.loads(payload)
-            except Exception:
-                logger.debug('Failed to parse JSON object payload', exc_info=True)
+            except json.JSONDecodeError:
+                logger.debug(f"Failed to parse JSON between {open_char}...{close_char}", exc_info=True)
                 return None
-    if '[' in content:
-        start = content.find('[')
-        end = content.rfind(']') + 1
-        if end > start:
-            payload = content[start:end]
-            try:
-                return json.loads(payload)
-            except Exception:
-                logger.debug('Failed to parse JSON array payload', exc_info=True)
-                return None
-
     return None
 
 
-def suggest_with_gemini(goal: str, api_key: str):
-    """Suggest packages using Google Gemini API via google-genai client if available, otherwise fallback to REST.
+def suggest_with_gemini(goal: str, api_key: str) -> Union[List[str], Dict[str, List[str]]]:
+    """Suggest packages using Google Gemini SDK (google-genai) only.
 
     Returns either a list of package names (legacy) or a dict with keys 'packages' and 'env_steps'.
+    If the SDK is not available or the call fails, an empty list is returned.
     """
     prompt_text = (
-        "You are an Arch Linux package recommender and environment setup assistant. Your job is to produce a concise, machine-readable JSON object describing:\n"
-        "  1) any environment creation steps (virtualenvs, venvs, python -m venv, python -m pipx, conda envs, docker commands) as an ordered list of shell commands under the key 'env_steps'.\n"
-        "  2) a list of Arch packages (official pacman names) under the key 'packages'. For AUR packages, prefix the name with 'aur:' (for example 'aur:google-chrome').\n"
-        "IMPORTANT: Respond with ONLY valid JSON (no markdown, no surrounding backticks). The JSON must be either an object with keys 'packages' and 'env_steps', or simply an array of package names (legacy).\n"
-        f"Task: Provide environment steps and packages needed to {goal}\n"
-        "Prefer pacman package names and keep commands idempotent. When suggesting pacman install commands, prefer using '--needed' so packages already installed are skipped.\n"
-        "Example object response: {\"env_steps\": [\"python -m venv .venv\", \"source .venv/bin/activate\"], \"packages\": [\"python\", \"git\"] }\n"
+        "You are an expert Arch Linux package recommender and environment setup assistant. Your output must be a concise, machine-readable JSON object describing two keys:\n"
+        "\n"
+        "1) \"env_steps\": An ordered list of shell commands for environment creation and setup. This can include creating virtual environments (python -m venv, pipx, conda), setting up Docker containers, enabling and starting system services, or any preparation steps required before package installation. Always provide steps here even if minimal.\n"
+        "\n"
+        "2) \"packages\": A list of Arch Linux packages to install with pacman (official package names). For AUR packages, prefix with \"aur:\".\n"
+        "\n"
+        "IMPORTANT:\n"
+        "- Respond with ONLY valid JSON. No Markdown, no backticks, no additional text.\n"
+        "- Always include the \"env_steps\" key with at least an empty list if no steps are needed.\n"
+        "- Commands should be idempotent and use \"--needed\" with pacman to skip already installed packages.\n"
+        "\n"
+        f"Task: Provide all environment setup steps and packages needed for the following goal:\n"
+        f"\"{goal}\"\n"
+        "\n"
+        "Example response:\n"
+        "{\n"
+        "  \"env_steps\": [\n"
+        "    \"python -m venv .venv\",\n"
+        "    \"source .venv/bin/activate\",\n"
+        "    \"sudo systemctl enable mongodb\",\n"
+        "    \"sudo systemctl start mongodb\"\n"
+        "  ],\n"
+        "  \"packages\": [\"nodejs\", \"yarn\", \"mongodb\", \"git\"]\n"
+        "}\n"
     )
 
-    # Prefer using google-genai client
-    if genai is not None:
-        try:
-            client = genai.Client()
-            # Retry a few times for transient server-side overloads (503).
-            max_attempts = 3
-            response = None
-            for attempt in range(1, max_attempts + 1):
-                try:
-                    response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt_text)
-                    break
-                except Exception as e:
-                    # If this was the last attempt, re-raise to be caught by outer except
-                    if attempt == max_attempts:
-                        raise
-                    logger.warning('Gemini client transient error (attempt %d/%d): %s', attempt, max_attempts, e)
-                    # exponential backoff
-                    time.sleep(2 ** (attempt - 1))
-            # Attempt to extract text safely from likely response shapes
-            text = None
-            try:
-                text = response.candidates[0].content.parts[0].text
-            except Exception:
-                try:
-                    text = response.candidates[0].content[0].text
-                except Exception:
-                    try:
-                        text = response.candidates[0].content.text
-                    except Exception:
-                        text = None
-            if not text:
-                logger.warning('Gemini client returned unexpected shape; falling back to REST')
-            else:
-                parsed = _extract_json_from_text(text)
-                if parsed is not None:
-                    return parsed
-                logger.warning('Could not extract JSON from Gemini client text; falling back to REST')
-        except Exception:
-            logger.exception('Gemini client error; falling back to REST')
-
-    # Fallback REST path
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
-    headers = {"Content-Type": "application/json"}
-    data = {
-        "contents": [
-            {"parts": [{"text": prompt_text}]}
-        ],
-        "generationConfig": {"responseMimeType": "text/plain", "candidateCount": 1, "temperature": 0.1}
-    }
-    params = {"key": api_key}
+    if genai is None:
+        logger.error("google-genai SDK (genai) is not available; suggest_with_gemini requires the SDK")
+        return []
 
     try:
-        resp = requests.post(url, headers=headers, params=params, json=data)
-        resp.raise_for_status()
-        result = resp.json()
-        if "error" in result:
-            logger.error('Gemini API error: %s', result["error"].get("message", "Unknown error"))
-            return []
+        client = genai.Client()
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            try:
+                response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt_text)
+                break
+            except Exception as e:
+                if attempt == max_attempts:
+                    raise
+                logger.warning("Gemini client transient error (attempt %d/%d): %s", attempt, max_attempts, e)
+                time.sleep(2 ** (attempt - 1))
 
-        # attempt to get text from several shapes
+        # Extract text content safely from likely response shapes
         text = None
         try:
-            text = result["candidates"][0]["content"]["parts"][0]["text"]
+            text = response.candidates[0].content.parts[0].text
         except Exception:
             try:
-                text = result["candidates"][0]["content"][0]["text"]
+                text = response.candidates[0].content[0].text
             except Exception:
                 try:
-                    text = result["candidates"][0]["text"]
+                    text = response.candidates[0].content.text
                 except Exception:
                     text = None
 
         if not text:
-            logger.error('Gemini REST response unexpected. Full response: %s', result)
+            logger.error("Gemini client returned unexpected shape or empty text")
             return []
 
         parsed = _extract_json_from_text(text)
         if parsed is not None:
             return parsed
 
-        logger.error('Could not extract valid JSON from Gemini response text')
-        return []
-    except requests.exceptions.RequestException:
-        logger.exception('Network error when calling Gemini REST API')
+        logger.error("Could not extract JSON from Gemini client text")
         return []
     except Exception:
-        logger.exception('Unexpected error in suggest_with_gemini')
+        logger.exception("Gemini client error")
         return []
