@@ -12,10 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 def _extract_json_from_text(text: str) -> Any:
-    """Try to extract a JSON object or array from a text blob.
-
-    Returns parsed JSON on success, or None on failure.
-    """
+    """Extract JSON object or array from text."""
     if not text:
         return None
     content = text.strip()
@@ -24,55 +21,46 @@ def _extract_json_from_text(text: str) -> Any:
     except json.JSONDecodeError:
         pass
 
-    # Attempt to extract JSON object or array substrings
     for open_char, close_char in [('{', '}'), ('[', ']')]:
         start = content.find(open_char)
         end = content.rfind(close_char) + 1
         if start != -1 and end > start:
-            payload = content[start:end]
             try:
-                return json.loads(payload)
+                return json.loads(content[start:end])
             except json.JSONDecodeError:
-                logger.debug(f"Failed to parse JSON between {open_char}...{close_char}", exc_info=True)
-                return None
+                logger.debug(f"Failed to parse JSON {open_char}...{close_char}", exc_info=True)
     return None
 
 
 def suggest_with_gemini(goal: str, api_key: str) -> Union[List[str], Dict[str, List[str]]]:
-    """Suggest packages using Google Gemini SDK (google-genai) only.
+    """Suggest packages using Google Gemini SDK.
 
-    Returns either a list of package names (legacy) or a dict with keys 'packages' and 'env_steps'.
-    If the SDK is not available or the call fails, an empty list is returned.
+    Returns dict with 'packages' and 'env_steps' keys, or empty list on failure.
     """
     prompt_text = (
-        "You are an expert Arch Linux package recommender and environment setup assistant. Your output must be a concise, machine-readable JSON object describing two keys:\n"
+        "You are an Arch Linux package and dev environment assistant. Return ONLY valid JSON with two keys:\n"
         "\n"
-        "1) \"env_steps\": An ordered list of shell commands for environment creation and setup. This can include creating virtual environments (python -m venv, pipx, conda), setting up Docker containers, enabling and starting system services, or any preparation steps required before package installation. Always provide steps here even if minimal.\n"
+        "1. \"env_steps\": Shell commands for setup (mkdir, venv, npm/pip install, service config). Use [] for simple installs.\n"
+        "2. \"packages\": Arch packages (official names). Prefix AUR with \"aur:\" (e.g., \"aur:google-chrome\").\n"
         "\n"
-        "2) \"packages\": A list of Arch Linux packages to install with pacman (official package names). For AUR packages, prefix with \"aur:\".\n"
+        "Rules:\n"
+        "- JSON only, no markdown/backticks\n"
+        "- Empty env_steps for package installs only\n"
+        "- Full env_steps for dev environments/projects\n"
+        "- Use --needed with pacman\n"
         "\n"
-        "IMPORTANT:\n"
-        "- Respond with ONLY valid JSON. No Markdown, no backticks, no additional text.\n"
-        "- Always include the \"env_steps\" key with at least an empty list if no steps are needed.\n"
-        "- Commands should be idempotent and use \"--needed\" with pacman to skip already installed packages.\n"
+        f"Task: {goal}\n"
         "\n"
-        f"Task: Provide all environment setup steps and packages needed for the following goal:\n"
-        f"\"{goal}\"\n"
+        "Examples:\n"
+        "\"install vlc git\" → {\"env_steps\": [], \"packages\": [\"vlc\", \"git\"]}\n"
         "\n"
-        "Example response:\n"
-        "{\n"
-        "  \"env_steps\": [\n"
-        "    \"python -m venv .venv\",\n"
-        "    \"source .venv/bin/activate\",\n"
-        "    \"sudo systemctl enable mongodb\",\n"
-        "    \"sudo systemctl start mongodb\"\n"
-        "  ],\n"
-        "  \"packages\": [\"nodejs\", \"yarn\", \"mongodb\", \"git\"]\n"
-        "}\n"
+        "\"create django dev\" → {\"env_steps\": [\"mkdir project && cd project\", \"python -m venv .venv\", \"source .venv/bin/activate\", \"pip install django\"], \"packages\": [\"python\", \"python-pip\", \"git\"]}\n"
+        "\n"
+        "\"create react project named app1 with tailwind\" → {\"env_steps\": [\"npm create vite@latest app1 -- --template react\", \"cd app1\", \"npm install\", \"npm install -D tailwindcss postcss autoprefixer\", \"npx tailwindcss init -p\"], \"packages\": [\"nodejs\", \"npm\", \"git\"]}\n"
     )
 
     if genai is None:
-        logger.error("google-genai SDK (genai) is not available; suggest_with_gemini requires the SDK")
+        logger.error("google-genai SDK not available")
         return []
 
     try:
@@ -85,10 +73,10 @@ def suggest_with_gemini(goal: str, api_key: str) -> Union[List[str], Dict[str, L
             except Exception as e:
                 if attempt == max_attempts:
                     raise
-                logger.warning("Gemini client transient error (attempt %d/%d): %s", attempt, max_attempts, e)
+                logger.warning("Gemini error (attempt %d/%d): %s", attempt, max_attempts, e)
                 time.sleep(2 ** (attempt - 1))
 
-        # Extract text content safely from likely response shapes
+        # Extract text from response
         text = None
         try:
             text = response.candidates[0].content.parts[0].text
@@ -99,17 +87,17 @@ def suggest_with_gemini(goal: str, api_key: str) -> Union[List[str], Dict[str, L
                 try:
                     text = response.candidates[0].content.text
                 except Exception:
-                    text = None
+                    pass
 
         if not text:
-            logger.error("Gemini client returned unexpected shape or empty text")
+            logger.error("Gemini returned empty text")
             return []
 
         parsed = _extract_json_from_text(text)
         if parsed is not None:
             return parsed
 
-        logger.error("Could not extract JSON from Gemini client text")
+        logger.error("Could not extract JSON from Gemini text")
         return []
     except Exception:
         logger.exception("Gemini client error")
